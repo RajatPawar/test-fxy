@@ -67,7 +67,7 @@ class Recommender:
             print("Matches - we've got them!")
             # Sort according to similarity fuzzy ratio and present it
             all_matches = sorted(all_matches, key = lambda element : element[2], reverse = True)
-            # Print movie titles of all similar products
+            # Print product titles of all similar products
             print('{0}'.format([row[0] for row in all_matches]))
             # Return the MOST similar product's index
             return all_matches[0][1]
