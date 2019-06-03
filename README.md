@@ -2,6 +2,9 @@
 
 The program that I'd like you to build is called ProductRoulette. It can be a command line tool. The user enters his email and persona (developer, salesperson, marketing, etc.), and the program immediately starts showing interesting B2B products that she may or may not like. Depending on the feedback, the program gets progressive smarter and gets the user's interest profile. Like Netflix/Tinder for Software Products.
 
+## Related literature:
+https://arxiv.org/pdf/1604.02071.pdf
+
 ## Thoughts
 
 There are a few types of recommender systems that I’ve read about - 
