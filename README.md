@@ -1,3 +1,4 @@
+###### On hold until we can review and discuss the next best strategy!
 ## Problem statement
 
 The program that I'd like you to build is called ProductRoulette. It can be a command line tool. The user enters his email and persona (developer, salesperson, marketing, etc.), and the program immediately starts showing interesting B2B products that she may or may not like. Depending on the feedback, the program gets progressive smarter and gets the user's interest profile. Like Netflix/Tinder for Software Products.
