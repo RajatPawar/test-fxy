@@ -8,6 +8,9 @@ import fuzzywuzzy as fuzzy
 class Recommender:
 
     def __init__(self, products_set_path, ratings_set_path, min_product_interactions, min_user_ratings, string_match_threshold):
+        """
+            # Returns - none
+        """
         # Product information dataset with relevant metadata
         self.products_set_path = products_set_path
         # Product user interaction dataset (Ratings, etc)
@@ -22,10 +25,13 @@ class Recommender:
         self.string_match_threshold = string_match_threshold
 
     def set_model_parameters(self, k_value, algorithm, metric_to_use, parallel_jobs):
+        """
+            # Returns - none
+        """
         # Make sure if we allow running parallel jobs, then we give it a scratchpad
         if parallel_jobs and (parallel_jobs > 1 or parallel_jobs == -1):
             os.environ['JOBLIB_TEMP_FOLDER'] = '/tmp';
-        self.model.set_params({
+        self.model({
             # How many neigbors to gather to get a classification vote?
             'n_neighbors': k_value,
             # Which algo to use to iterate through points to get neighbors?
@@ -37,6 +43,12 @@ class Recommender:
         })
 
     def prepare_clean_data(self):
+        """
+            # Returns           - prod_user_matrix & prodname_index_map
+
+            prod_user_matrix    - A filtered matrix of productId vs userId with ratings as values
+            prodname_index_map  - Maintains map of product_name vs product index in main matrix for searches, etc
+        """
         # Load product dataset into a dataframe
         # Use only product ID and the product name as features after specifying their datatype
         products_dataframe = pnd.read_csv(self.products_set_path, usecols=['productId', 'name'], dtype={'productId': 'int32', 'name': 'str'})
@@ -63,10 +75,14 @@ class Recommender:
         prod_user_matrix = filtered_ratings.pivot(index = 'productId', columns = 'userId', value = 'rating').fillna(0)
 
         # Keep reference of productId index in filtered matrix to its row in product_dataset
+        # Make the map here and return the matrix & map
         # got to finish this
         # -----------------------------------
 
     def string_match(self, prodname_index_map, product_name):
+        """
+            # Returns - Top X match(es) to given product_name in our map of product names
+        """
         # Uses the fuzzywuzzy lib to return closest match to product name in the map
         all_matches = []
 
@@ -89,6 +105,9 @@ class Recommender:
             return all_matches[0][1]
 
     def infer(self, prod_user_matrix, prodname_index_map, root_product, num_of_recommendations = None):
+        """
+            # Returns - (raw list of num_of_recommendations products similar to root_product)
+        """
         # Study the data, and use the values to understand mathematical relationships
         # between variables and create an equation that fits our given set well
         # Using this, we can try and predict outcome given certain observations
@@ -108,6 +127,9 @@ class Recommender:
         # -----------------------------------
 
     def recommend(self, product, num_of_recommendations):
+        """
+            # Returns - User facing list of num_of_recommendations products to show
+        """
         # Get prod_user_matrix & map from prepare_clean_data()
         # infer(prod_user_matrix, map, product, num_of_recommendations)
         # returns num_of_recommendations most relevant items based on product
@@ -115,6 +137,9 @@ class Recommender:
         # -----------------------------------
 
     def start_user_loop(self):
+        """
+            # Returns - none
+        """
         # Take input of persona/domaininterest from user
         # Input needs to be taken just like Netflix interests when you sign up
         # to avoid the cold start problem. Use item similarities to show initial
@@ -122,12 +147,14 @@ class Recommender:
         while True:
             # Add each interaction between the user and a product to our ratings dataset
             # Product info in product_dataset will already be populated when we create products
-            # We call recommend() on last shown product each time and it is
-            # guarenteed to get better
+            # Wait for user action (rating of a product) and then call recommend() again
             return
         # -----------------------------------
 
-    def search(self, product):
+    def search(self, root_product):
+        """
+            # Returns - list of num_of_recommendations products relevant to root_product
+        """
         # User search
         # Use string_match to return closest product to searched one
         # Use recommend() on match to get top results for searched product
