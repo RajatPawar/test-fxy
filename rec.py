@@ -1,9 +1,10 @@
 # scikit for machine learning
-from sklearn.neighbors import NearestNeighbor
+from sklearn.neighbors import NearestNeighbors
 # Pandas for data manipulation
 import pandas as pnd
 # String matching for user searches
 import fuzzywuzzy as fuzzy
+import os
 
 class Recommender:
 
@@ -20,7 +21,7 @@ class Recommender:
         # Min number of ratings user must give to count
         self.min_user_ratings = min_user_ratings
         # We use the K nearest neighbors model to classify
-        self.model = NearestNeighbour()
+        self.model = NearestNeighbors()
         # Threshold to match given product name to our list of products (60+)
         self.string_match_threshold = string_match_threshold
 
@@ -28,10 +29,11 @@ class Recommender:
         """
             # Returns - none
         """
+        self.neighbors_to_consider = k_value
         # Make sure if we allow running parallel jobs, then we give it a scratchpad
         if parallel_jobs and (parallel_jobs > 1 or parallel_jobs == -1):
             os.environ['JOBLIB_TEMP_FOLDER'] = '/tmp';
-        self.model({
+        self.model.set_params(**{
             # How many neigbors to gather to get a classification vote?
             'n_neighbors': k_value,
             # Which algo to use to iterate through points to get neighbors?
@@ -52,6 +54,7 @@ class Recommender:
         # Load product dataset into a dataframe
         # Use only product ID and the product name as features after specifying their datatype
         products_dataframe = pnd.read_csv(self.products_set_path, usecols=['productId', 'name'], dtype={'productId': 'int32', 'name': 'str'})
+
         # Load ratings dataset into a dataframe
         # Use only product ID, user ID and rating given as features for our model
         ratings_dataframe = pnd.read_csv(self.ratings_set_path, usecols=['productId', 'userId', 'rating'], dtype={'productId': 'int32', 'userId': 'int32', 'rating': 'float32'})
@@ -61,19 +64,22 @@ class Recommender:
         # 2. Eliminate inactive users from dataset
 
         # 1. The filtered_ratings below DF helps us retain products with more than > min_product_interactions number of ratings
-        active_products_count_dataframe = pnd.DataFrame(ratings_dataframe.groupby('productId'), columns=['number_of_ratings'])
+        active_products_count_dataframe = pnd.DataFrame(ratings_dataframe.groupby('productId').size(), columns=['number_of_ratings'])
         active_products_dataframe_idx = list((active_products_count_dataframe.query('number_of_ratings > @self.min_product_interactions').index))
         # Get a list of active products and only keep their ratings in the ratings dataset - eliminate rest
         filtered_ratings = ratings_dataframe[ratings_dataframe.productId.isin(active_products_dataframe_idx)]
 
         # 2. Eliminate inactive users - they are very likely to rate sporadically causing recommendation skew
-        active_users_count_dataframe = pnd.DataFrame(filtered_ratings.groupby('userId'), columns=['number_of_given_ratings'])
+        active_users_count_dataframe = pnd.DataFrame(filtered_ratings.groupby('userId').size(), columns=['number_of_given_ratings'])
         active_users_count_idx = list(active_users_count_dataframe.query('number_of_given_ratings > @self.min_user_ratings').index)
         filtered_ratings = filtered_ratings[filtered_ratings.userId.isin(active_users_count_idx)]
 
         # Get it into a matrix from a normal array (We need them in a vector format for KNN to work)
-        prod_user_matrix = filtered_ratings.pivot(index = 'productId', columns = 'userId', value = 'rating').fillna(0)
+        prod_user_matrix = filtered_ratings.pivot(index = 'productId', columns = 'userId', values = 'rating').fillna(0)
+        prodname_index_map = {}
+        print(prod_user_matrix)
 
+        return prod_user_matrix, prodname_index_map
         # Keep reference of productId index in filtered matrix to its row in product_dataset
         # Make the map here and return the matrix & map
         # got to finish this
@@ -119,8 +125,8 @@ class Recommender:
         root_prod_index = self.string_match(prodname_index_map, root_product)
 
         # The actual magic happens here
-        similarities, idxs = self.model.kneighbors(prod_user_matrix, n_neighbors = ((num_of_recommendations == None) ? self.model.get_params('k_value') : num_of_recommendations))
-
+        similarities, idxs = self.model.kneighbors(prod_user_matrix, n_neighbors = (num_of_recommendations if num_of_recommendations else self.neighbors_to_consider)) # Use self.model.get_params to get k_value
+        print(similarities)
         # We have a list of products similar to our given product along with the indices
         # Use those indices to get details from prodname_index_map and display
         # got to finish this
@@ -140,6 +146,9 @@ class Recommender:
         """
             # Returns - none
         """
+        prod_user_matrix, prodname_index_map = self.prepare_clean_data()
+        self.infer(prod_user_matrix, prodname_index_map, "")
+
         # Take input of persona/domaininterest from user
         # Input needs to be taken just like Netflix interests when you sign up
         # to avoid the cold start problem. Use item similarities to show initial
@@ -160,9 +169,10 @@ class Recommender:
         # Use recommend() on match to get top results for searched product
         # -----------------------------------
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Initialize model, pass parameters
-    recommender = Recommender(.., .., ..)
-    recommender.set_model_parameters(.., ..)
+    recommender = Recommender('products.csv', 'ratings.csv', 0, 0, 70)
+    recommender.set_model_parameters(2, 'brute', 'cosine', -1)
+
     # Start user engagement here onwards
     recommender.start_user_loop()
