@@ -8,6 +8,22 @@ import os
 
 class Recommender:
 
+    # Datasets - static vars
+    # ---------------------
+    # Google - Folder struct
+    folder_struct_google = os.path.join("datasets", "Google")
+    # Apple - Folder struct
+    folder_struct_apple = os.path.join("datasets", "Apple")
+    # Sample - Folder struct
+    folder_struct_sample = os.path.join("datasets", "Sample")
+    # All our datasets
+    datasets = [
+        { 'reviews': os.path.join(folder_struct_google, "reviews.csv"), 'products': os.path.join(folder_struct_google,  "products.csv") },
+        { 'reviews': os.path.join(folder_struct_apple, "reviews.csv"), 'products': os.path.join(folder_struct_apple, "products.csv") },
+        { 'reviews': os.path.join(folder_struct_sample, "reviews.csv"), 'products': os.path.join(folder_struct_sample, "products.csv") }
+    ]
+
+    # Initialize
     def __init__(self, products_set_path, ratings_set_path, min_product_interactions, min_user_ratings, string_match_threshold):
         """
             # Returns - none
@@ -24,6 +40,7 @@ class Recommender:
         self.model = NearestNeighbors()
         # Threshold to match given product name to our list of products (60+)
         self.string_match_threshold = string_match_threshold
+        
 
     def set_model_parameters(self, k_value, algorithm, metric_to_use, parallel_jobs):
         """
@@ -170,9 +187,16 @@ class Recommender:
         # -----------------------------------
 
 if __name__ == "__main__":
-    # Initialize model, pass parameters
-    recommender = Recommender('products.csv', 'ratings.csv', 0, 0, 70)
-    recommender.set_model_parameters(2, 'brute', 'cosine', -1)
+    # Which dataset to use?
+    dataset = int(input("Which dataset do we want to try?\n1. Google\n2. Apple\n3. Sample\nEnter choice - "))
+    if 0 < dataset < 4:
+        dataset = dataset - 1 # Adjust for array indices
+        # Initialize model, pass parameters
+        recommender = Recommender(Recommender.datasets[dataset]['products'], Recommender.datasets[dataset]['reviews'], 0, 0, 70)
+        recommender.set_model_parameters(2, 'brute', 'cosine', -1)
 
-    # Start user engagement here onwards
-    recommender.start_user_loop()
+        # Start user engagement here onwards
+        recommender.start_user_loop()
+    else:
+        print("Invalid choice")
+        exit()
