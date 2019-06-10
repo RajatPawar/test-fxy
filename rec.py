@@ -18,13 +18,30 @@ class Recommender:
     folder_struct_sample = os.path.join("datasets", "Sample")
     # All our datasets
     datasets = [
-        { 'reviews': os.path.join(folder_struct_google, "reviews.csv"), 'products': os.path.join(folder_struct_google,  "products.csv") },
-        { 'reviews': os.path.join(folder_struct_apple, "reviews.csv"), 'products': os.path.join(folder_struct_apple, "products.csv") },
-        { 'reviews': os.path.join(folder_struct_sample, "reviews.csv"), 'products': os.path.join(folder_struct_sample, "products.csv") }
+        {
+            'reviews': os.path.join(folder_struct_google, "reviews.csv"),
+            'products': os.path.join(folder_struct_google,  "products.csv")
+        },
+        {
+            'reviews': os.path.join(folder_struct_apple, "reviews.csv"),
+            'products': os.path.join(folder_struct_apple, "products.csv"),
+            'product_id': 'id',
+            'product_name': 'track_name',
+            'user_id': 'user',
+            'ratings_id': 'ratings'
+        },
+        {
+            'reviews': os.path.join(folder_struct_sample, "reviews.csv"),
+            'products': os.path.join(folder_struct_sample, "products.csv"),
+            'product_id': 'productId',
+            'product_name': 'name',
+            'user_id': 'userId',
+            'ratings_id': 'rating'
+        }
     ]
 
     # Initialize
-    def __init__(self, products_set_path, ratings_set_path, min_product_interactions, min_user_ratings, string_match_threshold):
+    def __init__(self, products_set_path, ratings_set_path, min_product_interactions, min_user_ratings, string_match_threshold, dataset):
         """
             # Returns - none
         """
@@ -40,7 +57,9 @@ class Recommender:
         self.model = NearestNeighbors()
         # Threshold to match given product name to our list of products (60+)
         self.string_match_threshold = string_match_threshold
-        
+        # Which dataset?
+        self.dataset = dataset
+
 
     def set_model_parameters(self, k_value, algorithm, metric_to_use, parallel_jobs):
         """
@@ -70,29 +89,29 @@ class Recommender:
         """
         # Load product dataset into a dataframe
         # Use only product ID and the product name as features after specifying their datatype
-        products_dataframe = pnd.read_csv(self.products_set_path, usecols=['productId', 'name'], dtype={'productId': 'int32', 'name': 'str'})
+        products_dataframe = pnd.read_csv(self.products_set_path, usecols=[Recommender.datasets[self.dataset]['product_id'], Recommender.datasets[self.dataset]['product_name']], dtype={Recommender.datasets[self.dataset]['product_id']: 'int32', Recommender.datasets[self.dataset]['product_name']: 'str'})
 
         # Load ratings dataset into a dataframe
         # Use only product ID, user ID and rating given as features for our model
-        ratings_dataframe = pnd.read_csv(self.ratings_set_path, usecols=['productId', 'userId', 'rating'], dtype={'productId': 'int32', 'userId': 'int32', 'rating': 'float32'})
+        ratings_dataframe = pnd.read_csv(self.ratings_set_path, usecols=[Recommender.datasets[self.dataset]['product_id'], Recommender.datasets[self.dataset]['user_id'], Recommender.datasets[self.dataset]['ratings_id']], dtype={Recommender.datasets[self.dataset]['product_id']: 'int32', Recommender.datasets[self.dataset]['user_id']: 'int32', Recommender.datasets[self.dataset]['ratings_id']: 'float32'})
 
         # Steps to clean data -
         # 1. Only take products with count(ratings) > min_product_interactions
         # 2. Eliminate inactive users from dataset
 
         # 1. The filtered_ratings below DF helps us retain products with more than > min_product_interactions number of ratings
-        active_products_count_dataframe = pnd.DataFrame(ratings_dataframe.groupby('productId').size(), columns=['number_of_ratings'])
+        active_products_count_dataframe = pnd.DataFrame(ratings_dataframe.groupby(Recommender.datasets[self.dataset]['product_id']).size(), columns=['number_of_ratings'])
         active_products_dataframe_idx = list((active_products_count_dataframe.query('number_of_ratings > @self.min_product_interactions').index))
         # Get a list of active products and only keep their ratings in the ratings dataset - eliminate rest
         filtered_ratings = ratings_dataframe[ratings_dataframe.productId.isin(active_products_dataframe_idx)]
 
         # 2. Eliminate inactive users - they are very likely to rate sporadically causing recommendation skew
-        active_users_count_dataframe = pnd.DataFrame(filtered_ratings.groupby('userId').size(), columns=['number_of_given_ratings'])
+        active_users_count_dataframe = pnd.DataFrame(filtered_ratings.groupby(Recommender.datasets[self.dataset]['user_id']).size(), columns=['number_of_given_ratings'])
         active_users_count_idx = list(active_users_count_dataframe.query('number_of_given_ratings > @self.min_user_ratings').index)
         filtered_ratings = filtered_ratings[filtered_ratings.userId.isin(active_users_count_idx)]
 
         # Get it into a matrix from a normal array (We need them in a vector format for KNN to work)
-        prod_user_matrix = filtered_ratings.pivot(index = 'productId', columns = 'userId', values = 'rating').fillna(0)
+        prod_user_matrix = filtered_ratings.pivot(index = Recommender.datasets[self.dataset]['product_id'], columns = Recommender.datasets[self.dataset]['user_id'], values = Recommender.datasets[self.dataset]['ratings_id']).fillna(0)
         prodname_index_map = {}
         print(prod_user_matrix)
 
@@ -192,7 +211,7 @@ if __name__ == "__main__":
     if 0 < dataset < 4:
         dataset = dataset - 1 # Adjust for array indices
         # Initialize model, pass parameters
-        recommender = Recommender(Recommender.datasets[dataset]['products'], Recommender.datasets[dataset]['reviews'], 0, 0, 70)
+        recommender = Recommender(Recommender.datasets[dataset]['products'], Recommender.datasets[dataset]['reviews'], 0, 0, 70, dataset)
         recommender.set_model_parameters(2, 'brute', 'cosine', -1)
 
         # Start user engagement here onwards
