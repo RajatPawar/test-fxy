@@ -2,14 +2,14 @@ import os
 import pandas as pd
 import random
 
-df =  pd.read_csv("datasets/Apple/products.csv", usecols=["id"], dtype={'id': 'int32'})
+df =  pd.read_csv("../datasets/Apple/products.csv", usecols=["id"], dtype={'id': 'int32'})
 array = df['id'].values
 
 reviews = 50000
-users = 10000
+users = 1000000
 len_array = len(array)
 
-file_handle = open("reviews.txt", 'w')
+file_handle = open("reviews.csv", 'w')
 
 for i in range(reviews):
     idx = random.randrange(len_array)

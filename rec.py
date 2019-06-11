@@ -1,9 +1,12 @@
 # scikit for machine learning
 from sklearn.neighbors import NearestNeighbors
+# Compression sparse Matrix
+from scipy.sparse import csr_matrix
 # Pandas for data manipulation
 import pandas as pnd
 # String matching for user searches
-import fuzzywuzzy as fuzzy
+from fuzzywuzzy import fuzz
+from math import isnan
 import os
 
 class Recommender:
@@ -28,7 +31,7 @@ class Recommender:
             'product_id': 'id',
             'product_name': 'track_name',
             'user_id': 'user',
-            'ratings_id': 'ratings'
+            'ratings_id': 'rating'
         },
         {
             'reviews': os.path.join(folder_struct_sample, "reviews.csv"),
@@ -90,6 +93,7 @@ class Recommender:
         # Load product dataset into a dataframe
         # Use only product ID and the product name as features after specifying their datatype
         products_dataframe = pnd.read_csv(self.products_set_path, usecols=[Recommender.datasets[self.dataset]['product_id'], Recommender.datasets[self.dataset]['product_name']], dtype={Recommender.datasets[self.dataset]['product_id']: 'int32', Recommender.datasets[self.dataset]['product_name']: 'str'})
+        products_dataframe.dropna(subset=[Recommender.datasets[self.dataset]['product_name']], inplace=True)
 
         # Load ratings dataset into a dataframe
         # Use only product ID, user ID and rating given as features for our model
@@ -103,19 +107,32 @@ class Recommender:
         active_products_count_dataframe = pnd.DataFrame(ratings_dataframe.groupby(Recommender.datasets[self.dataset]['product_id']).size(), columns=['number_of_ratings'])
         active_products_dataframe_idx = list((active_products_count_dataframe.query('number_of_ratings > @self.min_product_interactions').index))
         # Get a list of active products and only keep their ratings in the ratings dataset - eliminate rest
-        filtered_ratings = ratings_dataframe[ratings_dataframe.productId.isin(active_products_dataframe_idx)]
+        filtered_ratings = ratings_dataframe[Recommender.datasets[self.dataset]['product_id']].isin(active_products_dataframe_idx).values
 
         # 2. Eliminate inactive users - they are very likely to rate sporadically causing recommendation skew
-        active_users_count_dataframe = pnd.DataFrame(filtered_ratings.groupby(Recommender.datasets[self.dataset]['user_id']).size(), columns=['number_of_given_ratings'])
+        active_users_count_dataframe = pnd.DataFrame(ratings_dataframe.groupby(Recommender.datasets[self.dataset]['user_id']).size(), columns=['number_of_given_ratings'])
         active_users_count_idx = list(active_users_count_dataframe.query('number_of_given_ratings > @self.min_user_ratings').index)
-        filtered_ratings = filtered_ratings[filtered_ratings.userId.isin(active_users_count_idx)]
+        filtered_users = ratings_dataframe[Recommender.datasets[self.dataset]['user_id']].isin(active_users_count_idx).values
+
+        filtered_matrix = ratings_dataframe[filtered_ratings & filtered_users]
 
         # Get it into a matrix from a normal array (We need them in a vector format for KNN to work)
-        prod_user_matrix = filtered_ratings.pivot(index = Recommender.datasets[self.dataset]['product_id'], columns = Recommender.datasets[self.dataset]['user_id'], values = Recommender.datasets[self.dataset]['ratings_id']).fillna(0)
-        prodname_index_map = {}
+        prod_user_matrix = filtered_matrix.pivot(index = Recommender.datasets[self.dataset]['product_id'], columns = Recommender.datasets[self.dataset]['user_id'], values = Recommender.datasets[self.dataset]['ratings_id']).fillna(0)
+
+        # generate hashmap from products to matrix index
+        iter_list = list(products_dataframe.set_index(Recommender.datasets[self.dataset]['product_id']).loc[prod_user_matrix.index][Recommender.datasets[self.dataset]['product_name']])
+
+        prodname_index_map = {
+            product: i for i, product in
+            enumerate(iter_list)
+        }
+        prodname_index_map = {k: prodname_index_map[k] for k in prodname_index_map if type(k) is str}
+        print(prodname_index_map)
+
+        csr_prod_user_matrix = csr_matrix(prod_user_matrix)
         print(prod_user_matrix)
 
-        return prod_user_matrix, prodname_index_map
+        return csr_prod_user_matrix, prodname_index_map
         # Keep reference of productId index in filtered matrix to its row in product_dataset
         # Make the map here and return the matrix & map
         # got to finish this
@@ -130,7 +147,7 @@ class Recommender:
 
         # For all products in the map, get all similar strings & append into our list
         for name, index in prodname_index_map.items():
-            match_percent = fuzzy.ratio(name.tolower(), product_name)
+            match_percent = fuzz.ratio(name.lower(), product_name)
             if match_percent > self.string_match_threshold:
                 all_matches.append((name, index, match_percent))
 
@@ -161,8 +178,20 @@ class Recommender:
         root_prod_index = self.string_match(prodname_index_map, root_product)
 
         # The actual magic happens here
-        similarities, idxs = self.model.kneighbors(prod_user_matrix, n_neighbors = (num_of_recommendations if num_of_recommendations else self.neighbors_to_consider)) # Use self.model.get_params to get k_value
-        print(similarities)
+        similarities, idxs = self.model.kneighbors(prod_user_matrix[root_prod_index], n_neighbors = (num_of_recommendations if num_of_recommendations else self.neighbors_to_consider)) # Use self.model.get_params to get k_value
+        print(similarities, idxs)
+
+        raw_list = sorted(
+            list(
+                zip(
+                    idxs.squeeze().tolist(),
+                    similarities.squeeze().tolist()
+                )
+            ),
+            key=lambda x: x[1]
+        )[:0:-1]
+
+        return raw_list
         # We have a list of products similar to our given product along with the indices
         # Use those indices to get details from prodname_index_map and display
         # got to finish this
@@ -183,8 +212,14 @@ class Recommender:
             # Returns - none
         """
         prod_user_matrix, prodname_index_map = self.prepare_clean_data()
-        self.infer(prod_user_matrix, prodname_index_map, "")
+        list_raw = self.infer(prod_user_matrix, prodname_index_map, "Twisty Arrow - Shoot the Circle Wheel")
 
+        reverse_hashmap = {v:k for k,v in prodname_index_map.items()}
+        print('Recommendations for input - {}:'.format("Twisty Arrow - Shoot the Circle Wheel"))
+
+        for i, (idx, dist) in enumerate(list_raw):
+            if idx in reverse_hashmap.keys():
+                print('RECOMMENDATION: {1}, with distance of {2}'.format(i+1, reverse_hashmap[idx], dist))
         # Take input of persona/domaininterest from user
         # Input needs to be taken just like Netflix interests when you sign up
         # to avoid the cold start problem. Use item similarities to show initial
@@ -211,8 +246,8 @@ if __name__ == "__main__":
     if 0 < dataset < 4:
         dataset = dataset - 1 # Adjust for array indices
         # Initialize model, pass parameters
-        recommender = Recommender(Recommender.datasets[dataset]['products'], Recommender.datasets[dataset]['reviews'], 0, 0, 70, dataset)
-        recommender.set_model_parameters(2, 'brute', 'cosine', -1)
+        recommender = Recommender(Recommender.datasets[dataset]['products'], Recommender.datasets[dataset]['reviews'], 6, 0, 70, dataset)
+        recommender.set_model_parameters(30, 'brute', 'cosine', -1)
 
         # Start user engagement here onwards
         recommender.start_user_loop()
