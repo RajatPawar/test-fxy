@@ -44,7 +44,7 @@ class Recommender:
     ]
 
     # Initialize
-    def __init__(self, products_set_path, ratings_set_path, min_product_interactions, min_user_ratings, string_match_threshold, dataset):
+    def __init__(self, products_set_path, ratings_set_path, min_product_interactions, min_user_ratings, string_match_threshold, dataset, interest):
         """
             # Returns - none
         """
@@ -62,6 +62,8 @@ class Recommender:
         self.string_match_threshold = string_match_threshold
         # Which dataset?
         self.dataset = dataset
+        # Interest
+        self.interest = interest
 
 
     def set_model_parameters(self, k_value, algorithm, metric_to_use, parallel_jobs):
@@ -212,10 +214,10 @@ class Recommender:
             # Returns - none
         """
         prod_user_matrix, prodname_index_map = self.prepare_clean_data()
-        list_raw = self.infer(prod_user_matrix, prodname_index_map, "Twisty Arrow - Shoot the Circle Wheel")
+        list_raw = self.infer(prod_user_matrix, prodname_index_map, interest)
 
         reverse_hashmap = {v:k for k,v in prodname_index_map.items()}
-        print('Recommendations for input - {}:'.format("Twisty Arrow - Shoot the Circle Wheel"))
+        print('Recommendations relevant to - {}:'.format(interest))
 
         for i, (idx, dist) in enumerate(list_raw):
             if idx in reverse_hashmap.keys():
@@ -242,11 +244,12 @@ class Recommender:
 
 if __name__ == "__main__":
     # Which dataset to use?
-    dataset = int(input("Which dataset do we want to try?\n1. Google\n2. Apple\n3. Sample\nEnter choice - "))
+    dataset = int(input("Which dataset do we want to try?\n2. Apple\n3. Sample\nEnter choice - "))
     if 0 < dataset < 4:
+        interest = input("What are your interests? - ")
         dataset = dataset - 1 # Adjust for array indices
         # Initialize model, pass parameters
-        recommender = Recommender(Recommender.datasets[dataset]['products'], Recommender.datasets[dataset]['reviews'], 6, 0, 70, dataset)
+        recommender = Recommender(Recommender.datasets[dataset]['products'], Recommender.datasets[dataset]['reviews'], 6, 0, 50, dataset, interest)
         recommender.set_model_parameters(30, 'brute', 'cosine', -1)
 
         # Start user engagement here onwards
